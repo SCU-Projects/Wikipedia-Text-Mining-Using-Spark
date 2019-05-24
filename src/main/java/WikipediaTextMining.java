@@ -3,12 +3,8 @@ import java.util.regex.Pattern;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.functions;
-import org.apache.spark.sql.functions.*;
-
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaSparkContext;
-
 import static org.apache.spark.sql.functions.col;
 
 public class WikipediaTextMining {
@@ -34,6 +30,9 @@ public class WikipediaTextMining {
                 .option("rowTag", "page")
                 .load("F:\\BigData\\Assignments\\assignment-3\\src\\main\\resources\\sample.xml");
          Dataset<Row> df2 = df.select(col("title"), col("id"), col("revision"));
+         long count = df2.filter(String.valueOf(df2.col("revision").getField("minor").isNotNull())).count();
+         System.out.println(count);
         ctx.stop();
+        System.exit(0);
     }
 }

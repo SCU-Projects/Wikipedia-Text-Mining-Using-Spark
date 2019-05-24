@@ -1,3 +1,4 @@
+import java.util.List;
 import java.util.regex.Pattern;
 
 import org.apache.spark.sql.Dataset;
@@ -5,6 +6,8 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaSparkContext;
+import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema;
+
 import static org.apache.spark.sql.functions.col;
 
 public class WikipediaTextMining {
@@ -30,9 +33,46 @@ public class WikipediaTextMining {
                 .option("rowTag", "page")
                 .load("F:\\BigData\\Assignments\\assignment-3\\src\\main\\resources\\sample.xml");
          Dataset<Row> df2 = df.select(col("title"), col("id"), col("revision"));
-         long count = df2.filter(String.valueOf(df2.col("revision").getField("minor").isNotNull())).count();
-         System.out.println(count);
+         //getMinorTagsCount(df2);
+        getAtMostFiveUrlLinks(df2);
         ctx.stop();
         System.exit(0);
     }
+
+    static long getMinorTagsCount(Dataset<Row> dataset){
+        long count = dataset.filter(String.valueOf(dataset.col("revision").getField("minor").isNotNull())).count();
+        System.out.println("Minor tags count:"+ count);
+        return count;
+    }
+
+    static void getAtMostFiveUrlLinks(Dataset<Row> dataset){
+        List<Row> filteredRows = dataset.filter(row -> isMaxFiveUrlsInTextField(row)).collectAsList();
+        Row row = filteredRows.get(0);
+        System.out.println("Filtered rows with <= 5 url count:" + filteredRows.size());
+    }
+
+    private static boolean isMaxFiveUrlsInTextField(Row row) {
+        GenericRowWithSchema revision = row.getAs("revision");
+        String text = revision.getAs("text").toString();
+        String[] words = text.split(" ");
+        int count = 0;
+        for(String word : words){
+            if(word.contains("|url="))
+                count++;
+            if(count > 5)
+                return false;
+        }
+        return true;
+    }
+
+    class PageDetails{
+        Integer pageId;
+        String pageTitle;
+
+        PageDetails(Integer pageId, String pageTitle){
+            this.pageId = pageId;
+            this.pageTitle = pageTitle;
+        }
+    }
+
 }

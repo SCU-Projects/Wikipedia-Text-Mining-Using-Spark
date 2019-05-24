@@ -1,19 +1,15 @@
-import java.time.LocalDateTime;
-import java.util.Arrays;
-
-import java.util.Arrays;
-import java.util.List;
 import java.util.regex.Pattern;
 
-import org.apache.spark.SparkConf;
-import org.apache.spark.api.java.JavaPairRDD;
-import org.apache.spark.api.java.JavaRDD;
-import org.apache.spark.api.java.JavaSparkContext;
-import org.apache.spark.api.java.function.*;
-import org.apache.spark.api.java.function.Function2;
-import org.apache.spark.api.java.function.PairFunction;
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Row;
+import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.functions;
+import org.apache.spark.sql.functions.*;
 
-import scala.Tuple2;
+import org.apache.spark.SparkConf;
+import org.apache.spark.api.java.JavaSparkContext;
+
+import static org.apache.spark.sql.functions.col;
 
 public class WikipediaTextMining {
 
@@ -25,23 +21,19 @@ public class WikipediaTextMining {
             System.err.println("Usage: JavaWordCount <file>");
             System.exit(1);
         }
+        String inputFile = args[0];
         SparkConf sparkConf = new SparkConf().setAppName("JavaWordCount")
                 .setMaster("local");
         System.out.println("Spark configuration loaded");
         JavaSparkContext ctx = new JavaSparkContext(sparkConf);
-        JavaRDD<String> lines = ctx.textFile(args[0], 1);
-        System.out.println("Input file " + args[0] + "loaded");
-        long startTime = System.currentTimeMillis();
-        System.out.println("Starting at " + LocalDateTime.now());
-        JavaRDD<String> words = lines.flatMap(s -> Arrays.asList(SPACE.split(s)).iterator());
-        JavaPairRDD<String, Integer> wordAsTuple = words.mapToPair(word -> new Tuple2<>(word, 1));
-        JavaPairRDD<String, Integer> wordWithCount = wordAsTuple.reduceByKey((Integer i1, Integer i2)->i1 + i2);
-        List<Tuple2<String, Integer>> output = wordWithCount.collect();
-        System.out.println("Stopping at " + LocalDateTime.now());
-        System.out.println("Took " + (System.currentTimeMillis() - startTime)/1000 +  " seconds");
-        for (Tuple2<?, ?> tuple : output) {
-            System.out.println(tuple._1() + ": " + tuple._2());
-        }
+        //JavaRDD<String> lines = ctx.textFile(inputFile, 1);
+
+        SparkSession spark = SparkSession.builder().getOrCreate();
+        Dataset<Row> df = spark.read()
+                .format("xml")
+                .option("rowTag", "page")
+                .load("F:\\BigData\\Assignments\\assignment-3\\src\\main\\resources\\sample.xml");
+         Dataset<Row> df2 = df.select(col("title"), col("id"), col("revision"));
         ctx.stop();
     }
 }

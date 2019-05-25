@@ -1,6 +1,9 @@
+import java.io.*;
 import java.util.List;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
@@ -13,7 +16,7 @@ import static org.apache.spark.sql.functions.col;
 public class WikipediaTextMining {
 
     private static final Pattern SPACE = Pattern.compile(" ");
-
+    private static final String basePath = "F:\\BigData\\Assignments\\assignment-3\\src\\main\\resources";
 
     public static void main(String[] args) throws Exception {
         if (args.length < 1) {
@@ -31,7 +34,7 @@ public class WikipediaTextMining {
         Dataset<Row> df = spark.read()
                 .format("xml")
                 .option("rowTag", "page")
-                .load("F:\\BigData\\Assignments\\assignment-3\\src\\main\\resources\\sample.xml");
+                .load(basePath+"\\sample.xml");
          Dataset<Row> df2 = df.select(col("title"), col("id"), col("revision"));
          //getMinorTagsCount(df2);
         getAtMostFiveUrlLinks(df2);
@@ -46,9 +49,23 @@ public class WikipediaTextMining {
     }
 
     static void getAtMostFiveUrlLinks(Dataset<Row> dataset){
-        List<Row> filteredRows = dataset.filter(row -> isMaxFiveUrlsInTextField(row)).collectAsList();
-        Row row = filteredRows.get(0);
-        System.out.println("Filtered rows with <= 5 url count:" + filteredRows.size());
+        JavaRDD<Row> filteredRows = (JavaRDD<Row>) dataset.filter(row -> isMaxFiveUrlsInTextField(row)).select("id","title").toJavaRDD();
+        StringBuilder sb = new StringBuilder();
+        List<Row> filteredRowsList = filteredRows.collect();
+        filteredRowsList.stream().forEach(row -> addToOutput(sb, row));
+        try {
+            BufferedWriter writer = new BufferedWriter(new FileWriter(basePath+"\\output.txt"));
+            writer.write(sb.toString());
+            writer.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        //System.out.println("Filtered rows with <= 5 url count:" + filteredRows.count());
+    }
+
+    private static void addToOutput(StringBuilder sb, Row row){
+        String rowString = String.format("%s \t\t %s \n",row.getAs("id").toString(), row.getAs("title").toString());
+        sb.append(rowString);
     }
 
     private static boolean isMaxFiveUrlsInTextField(Row row) {
@@ -64,7 +81,7 @@ public class WikipediaTextMining {
         }
         return true;
     }
-
+    
     class PageDetails{
         Integer pageId;
         String pageTitle;

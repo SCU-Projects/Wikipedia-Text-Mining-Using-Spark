@@ -23,11 +23,11 @@ public class WikipediaTextMining {
         System.setOut(fileOut);
 
         SparkConf sparkConf = new SparkConf().setAppName("Java-Wikipedia-Data-Mining")
-                .setMaster("local");
+                .setMaster("local").set("spark.executor.memory","3000m");
         JavaSparkContext ctx = new JavaSparkContext(sparkConf);
 
         SparkSession spark = SparkSession.builder().getOrCreate();
-        boolean sample = true;
+        boolean sample = false;
         Dataset<Row> df = spark.read()
                 .format("xml")
                 .option("rowTag", "page")
@@ -38,7 +38,7 @@ public class WikipediaTextMining {
     }
 
     static void driver(Dataset<Row> df){
-        int action = 1;
+        int action = 3;
         switch(action){
             case 1: getMinorTagsCount(df);
                     break;
@@ -56,24 +56,25 @@ public class WikipediaTextMining {
     }
 
     static void getAtMostFiveUrlLinks(Dataset<Row> dataset){
-        Dataset<Row> df = dataset.select(dataset.col("id").as("page-id"), dataset.col("title").as("page-title"),
-                dataset.col("revision.text").as("rev-text")).toDF();
-
-        Dataset<Row> filteredRows = (Dataset<Row>) df.filter(row -> Utilities.isMaxFiveUrlsInTextRegex(row)).select("page-id","page-title");
+        Dataset<Row> df = dataset.select(dataset.col("id").as("page-id"),
+                dataset.col("title").as("page-title"), dataset.col("revision.text").as("rev-text"))
+                .filter(row -> Utilities.isMaxFiveUrlsInTextRegex(row)).select("page-id","page-title").toDF();
+        //Dataset<Row> filteredRows = (Dataset<Row>) df.filter(row -> Utilities.isMaxFiveUrlsInTextRegex(row)).select("page-id","page-title");
         System.out.println(String.format("%-10s \t\t %-15s","Page-id", "Page-title"));
         System.out.println("-----------------------------------------------------------------------");
-        filteredRows.foreach(row ->
+        df.foreach(row ->
                 System.out.println(String.format("%-10s \t\t %-15s",row.getAs("page-id").toString(), row.getAs("page-title").toString())));
     }
 
     static void getOnePlusContributorAlongWithRevisionId(Dataset<Row> dataset){
-        Dataset<Row> df = (Dataset<Row>) dataset.select(dataset.col("revision")).toDF();
+        //Dataset<Row> df = (Dataset<Row>) dataset.select(dataset.col("revision")).toDF();
 
         //df.persist();
 
-        Dataset<Row> filteredDf = df.select(df.col("revision.id").as("rev-id"), df.col("revision.timestamp").as("rev-ts"),
-                df.col("revision.contributor.id").as("contrib-id"), df.col("revision.contributor.ip").as("contrib-ip"),
-                df.col("revision.contributor.username").as("contrib-u-name")).toDF();
+        Dataset<Row> filteredDf = dataset.select(dataset.col("revision.id").as("rev-id"), dataset.col("revision.timestamp").as("rev-ts"),
+                dataset.col("revision.contributor.id").as("contrib-id"), dataset.col("revision.contributor.ip").as("contrib-ip"),
+                dataset.col("revision.contributor.username").as("contrib-u-name"))
+                .withColumn("count", org.apache.spark.sql.functions.lit(1)).toDF();
 
         //df.unpersist();
         //filteredDf.persist();
@@ -83,20 +84,20 @@ public class WikipediaTextMining {
         //         958                    contrib-ip
         //         3859                   together
         // >1      833
-        Dataset<Row> filteredDfWithCount = (Dataset<Row>) filteredDf.withColumn("count", org.apache.spark.sql.functions.lit(1));
+        //Dataset<Row> filteredDfWithCount = (Dataset<Row>) filteredDf.withColumn("count", org.apache.spark.sql.functions.lit(1));
 
         //filteredDf.unpersist();
         //filteredDfWithCount.persist();
 
-        Dataset<Row> gt1ContributionDF = (Dataset<Row>) filteredDfWithCount.groupBy(filteredDfWithCount.col("contrib-id"),
-                filteredDfWithCount.col("contrib-u-name"),filteredDfWithCount.col("contrib-ip"))
-                .agg(sum(filteredDfWithCount.col("count")), collect_list("rev-ts").as("rev-ts-list"),
-                        collect_list("rev-id").as("rev-id-list")).toDF();
+        Dataset<Row> gt1ContributionDF = (Dataset<Row>) filteredDf.groupBy(filteredDf.col("contrib-id"),
+                filteredDf.col("contrib-u-name"),filteredDf.col("contrib-ip"))
+                .agg(sum(filteredDf.col("count")), collect_list("rev-ts").as("rev-ts-list"),
+                        collect_list("rev-id").as("rev-id-list")).filter("sum(count) > 1").toDF();
 
         //filteredDfWithCount.unpersist();
         //gt1ContributionDF.persist();
 
-        Dataset<Row> result =  (Dataset<Row>) gt1ContributionDF.filter("sum(count) > 1").toDF();
+        //Dataset<Row> result =  (Dataset<Row>) gt1ContributionDF.filter("sum(count) > 1").toDF();
 
         //gt1ContributionDF.unpersist();
         //result.persist();
@@ -105,7 +106,7 @@ public class WikipediaTextMining {
         //result.toJavaRDD().map(row -> sortRevision(row));
         System.out.println(String.format("%-35s \t\t %-40s","Contributor", "Revision-id"));
         System.out.println("-----------------------------------------------------------------------");
-        result.foreach(row -> Utilities.sortAndAddToOutput(row));
+        gt1ContributionDF.foreach(row -> Utilities.sortAndAddToOutput(row));
     }
 
 }
